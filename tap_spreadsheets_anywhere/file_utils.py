@@ -42,6 +42,7 @@ def write_file(target_filename, table_spec, schema, max_records=-1):
     LOGGER.info('Syncing file "{}".'.format(target_filename))
     target_uri = resolve_target_uri(table_spec, target_filename)
     records_synced = 0
+    modified_since = dateutil.parser.parse(table_spec.get('start_date'))
     try:
         iterator = tap_spreadsheets_anywhere.format_handler.get_row_iterator(table_spec, target_uri)
         for row in iterator:
@@ -54,14 +55,17 @@ def write_file(target_filename, table_spec, schema, max_records=-1):
 
             try:
                 record_with_meta = {**conversion.convert_row(row, schema), **metadata}
-                singer.write_record(table_spec['name'], record_with_meta)
+                row_date = dateutil.parser.parse(record_with_meta.get("last_modified_date"))
+                if row_date > modified_since :
+                    singer.write_record(table_spec['name'], record_with_meta)
+                    records_synced += 1
+
             except BrokenPipeError as bpe:
                 LOGGER.error(
                     f'Pipe to loader broke after {records_synced} records were written from {target_filename}: troubled '
                     f'line was {record_with_meta}')
                 raise bpe
 
-            records_synced += 1
             if 0 < max_records <= records_synced:
                 break
 
@@ -326,8 +330,7 @@ def config_by_crawl(crawl_config):
     config = {'tables': []}
     for source in crawl_config:
         entries = {}
-        modified_since = dateutil.parser.parse(source['start_date'] if 'start_date' in source else
-                                               "1970-01-01T00:00:00Z")
+        modified_since = dateutil.parser.parse(source['start_date'] if 'start_date' in source else "1970-01-01T00:00:00Z")
         target_files = get_matching_objects(source, modified_since=modified_since)
         for file in target_files:
             if not file['key'].endswith('/'):
