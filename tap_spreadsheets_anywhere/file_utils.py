@@ -56,6 +56,7 @@ def write_file(target_filename, table_spec, schema, max_records=-1):
             try:
                 record_with_meta = {**conversion.convert_row(row, schema), **metadata}
                 row_date = dateutil.parser.parse(record_with_meta.get("last_modified_date"))
+                if row_date == None : continue
                 if row_date > modified_since :
                     singer.write_record(table_spec['name'], record_with_meta)
                     records_synced += 1
