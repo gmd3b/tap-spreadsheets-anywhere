@@ -55,8 +55,9 @@ def write_file(target_filename, table_spec, schema, max_records=-1):
 
             try:
                 record_with_meta = {**conversion.convert_row(row, schema), **metadata}
-                row_date = dateutil.parser.parse(record_with_meta.get("last_modified_date"))
-                if row_date == None : continue
+                row_date = record_with_meta.get("last_modified_date")
+                if row_date == None or row_date == "" : continue
+                row_date = dateutil.parser.parse(row_date)
                 if row_date > modified_since :
                     singer.write_record(table_spec['name'], record_with_meta)
                     records_synced += 1
@@ -66,6 +67,10 @@ def write_file(target_filename, table_spec, schema, max_records=-1):
                     f'Pipe to loader broke after {records_synced} records were written from {target_filename}: troubled '
                     f'line was {record_with_meta}')
                 raise bpe
+
+            except Exception as e :
+                LOGGER.error(e)
+                raise e
 
             if 0 < max_records <= records_synced:
                 break
